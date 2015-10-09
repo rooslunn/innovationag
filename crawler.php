@@ -63,14 +63,16 @@ function crawlPageLinks($url, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCache
 
     echo "Parsing: $url ...\n";
 
+    $startTime = microtime(true);
     $html = $curl->get($url);
 
     if ($html) {
         $doc->load($html);
 
         $imageCount = $doc->getImgTagCount();
-        $parsedPages->add(new Record($url, $imageCount, 0));
-        echo $url . ': ' . $imageCount . PHP_EOL;
+        $parseTime = microtime(true) - $startTime;
+        $parsedPages->add(new Record($url, $imageCount, $parseTime));
+        echo $url . ': ' . $imageCount . '; ' . $parseTime . PHP_EOL;
 
         $links = $doc->getLinks();
         foreach ($links as $link) {
