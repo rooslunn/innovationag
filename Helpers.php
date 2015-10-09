@@ -68,3 +68,34 @@ class ParsedPagesCache {
         return array_key_exists($url, $this->_urls);
     }
 }
+
+class HtmlPage {
+
+    protected $_domDoc;
+
+    public function __construct() {
+        $this->_domDoc = new \DOMDocument();
+        libxml_use_internal_errors(true);
+    }
+
+    public function load($html) {
+        $this->_domDoc->loadHTML($html, LIBXML_COMPACT);
+    }
+
+    public function getImgTagCount() {
+        $images = $this->_domDoc->getElementsByTagName('img');
+        return $images->length;
+    }
+
+    public function getLinks() {
+        return $this->_domDoc->getElementsByTagName('a');
+    }
+
+    public function getHrefOfLink(\DOMNode $link) {
+        if (is_object($link->attributes->getNamedItem('href'))) {
+            return $link->attributes->getNamedItem('href')->nodeValue;
+        }
+        return '';
+    }
+
+}

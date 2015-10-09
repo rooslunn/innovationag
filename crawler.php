@@ -11,6 +11,7 @@ include_once 'Helpers.php';
 use RKInnovationTest\ParsedPagesCache;
 use RKInnovationTest\Record;
 use RKInnovationTest\CurlWrapper;
+use RKInnovationTest\HtmlPage;
 
 
 $startPage = 'http://rabota.ua/';
@@ -20,9 +21,7 @@ $startPage = 'http://rabota.ua/';
 //$startPage = 'hh.ua';
 //$startPage = 'habrahabr.ru';
 
-libxml_use_internal_errors(true);
-
-$doc = new DOMDocument();
+$doc = new HtmlPage();
 $parsedPages = new ParsedPagesCache();
 $curl = new CurlWrapper();
 
@@ -39,21 +38,8 @@ if ($realStartPage) {
  * @param DOMDocument $doc
  * @return int
  */
-function getImgTagCount(DOMDocument $doc) {
-    $images = $doc->getElementsByTagName('img');
-    return $images->length;
-}
 
-function getLinksOf(DOMDocument $doc) {
-    return $doc->getElementsByTagName('a');
-}
 
-function getHrefOf(DOMNode $node) {
-    if (is_object($node->attributes->getNamedItem('href'))) {
-        return $node->attributes->getNamedItem('href')->nodeValue;
-    }
-    return '';
-}
 
 function isSiteLink($url) {
     return preg_match('/(^[^(http|https|ftp|www|#)]\/?[%\w\p{L}]+)/iu', $url);
@@ -67,7 +53,7 @@ function extractLocalPath($url) {
     return false;
 }
 
-function crawlPageLinks($url, DOMDocument $doc, CurlWrapper $curl, ParsedPagesCache $parsedPages) {
+function crawlPageLinks($url, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCache $parsedPages) {
 
     global $startPage;
 
@@ -80,15 +66,15 @@ function crawlPageLinks($url, DOMDocument $doc, CurlWrapper $curl, ParsedPagesCa
     $html = $curl->get($url);
 
     if ($html) {
-        $doc->loadHTML($html, LIBXML_COMPACT);
+        $doc->load($html);
 
-        $imageCount = getImgTagCount($doc);
+        $imageCount = $doc->getImgTagCount();
         $parsedPages->add(new Record($url, $imageCount, 0));
         echo $url . ': ' . $imageCount . PHP_EOL;
 
-        $links = getLinksOf($doc);
+        $links = $doc->getLinks();
         foreach ($links as $link) {
-            $url = getHrefOf($link);
+            $url = $doc->getHrefOfLink($link);
             if (isSiteLink($url)) {
                 $localPath = extractLocalPath($url);
                 $url = $startPage . $localPath;
