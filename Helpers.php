@@ -42,6 +42,14 @@ class CurlWrapper {
         curl_setopt($this->_ch, CURLOPT_URL, $url);
         return curl_exec($this->_ch);
     }
+
+    public function getEffectiveUrl($url) {
+        curl_setopt($this->_ch, CURLOPT_URL, $url);
+        if (curl_exec($this->_ch) !== false) {
+            return curl_getinfo($this->_ch, CURLINFO_EFFECTIVE_URL);
+        }
+        return false;
+    }
 }
 
 class ParsedPagesCache {
