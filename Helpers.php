@@ -50,6 +50,10 @@ class CurlWrapper {
         }
         return false;
     }
+
+    public function error() {
+        return curl_error($this->_ch);
+    }
 }
 
 class ParsedPagesCache {

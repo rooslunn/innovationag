@@ -14,9 +14,9 @@ use RKInnovationTest\CurlWrapper;
 use RKInnovationTest\HtmlPage;
 
 
-$startPage = 'http://rabota.ua/';
+//$startPage = 'http://rabota.ua/';
 //$startPage = 'https://www.google.com.ua';
-//$startPage = 'localhost:3030';
+$startPage = 'localhost:3030';
 //$startPage = 'www.apple.com';
 //$startPage = 'hh.ua';
 //$startPage = 'habrahabr.ru';
@@ -29,16 +29,10 @@ $curl = new CurlWrapper();
 
 $realStartPage = $curl->getEffectiveUrl($startPage);
 if ($realStartPage) {
-    crawlPageLinks($realStartPage, $doc, $curl, $parsedPages);
+    crawlSite($realStartPage, $doc, $curl, $parsedPages);
 } else {
     die('Address is unreachable');
 }
-
-/**
- * @param DOMDocument $doc
- * @return int
- */
-
 
 
 function isSiteLink($url) {
@@ -53,22 +47,30 @@ function extractLocalPath($url) {
     return false;
 }
 
-function crawlPageLinks($url, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCache $parsedPages) {
+function crawlSite($startPage, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCache $parsedPages) {
+    $linkStack = [];
 
-    global $startPage;
+    $url = $startPage;
 
-    if ($parsedPages->isUrlInCache($url)) {
-        return;
-    }
+    $linkStack[] = $url;
 
-    echo "Parsing: $url ...\n";
+    while (count($linkStack) > 0) {
 
-    $startTime = microtime(true);
-    $html = $curl->get($url);
+        $url = array_shift($linkStack);
 
-    if ($html) {
+        if ($parsedPages->isUrlInCache($url)) {
+            continue;
+        }
+
+        echo 'Parsing: ' . urldecode($url) . PHP_EOL;
+        $html = $curl->get($url);
+        if ($html === false) {
+            echo 'Failed: ' . $curl->error() . PHP_EOL;
+            continue;
+        }
+
+        $startTime = microtime(true);
         $doc->load($html);
-
         $imageCount = $doc->getImgTagCount();
         $parseTime = microtime(true) - $startTime;
         $parsedPages->add(new Record($url, $imageCount, $parseTime));
@@ -76,15 +78,12 @@ function crawlPageLinks($url, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCache
 
         $links = $doc->getLinks();
         foreach ($links as $link) {
-            $url = $doc->getHrefOfLink($link);
-            if (isSiteLink($url)) {
-                $localPath = extractLocalPath($url);
-                $url = $startPage . $localPath;
-                crawlPageLinks($url, $doc, $curl, $parsedPages);
+            $href = $doc->getHrefOfLink($link);
+            if (isSiteLink($href)) {
+                $url = $startPage . extractLocalPath($href);
+                $linkStack[] =  $url;
             }
         }
-    } else {
-        echo "Cant get page $url";
     }
 }
 
