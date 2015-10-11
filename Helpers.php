@@ -8,6 +8,11 @@
 
 namespace RKInnovationTest;
 
+/**
+ * Class Record
+ *
+ * @package RKInnovationTest
+ */
 class Record {
 
     protected $_url;
@@ -33,8 +38,19 @@ class Record {
     }
 }
 
+/**
+ * Class CurlWrapper
+ *
+  * @package RKInnovationTest
+ */
 class CurlWrapper {
 
+    /**
+     * Send GET request to $url and returns result
+     *
+     * @param string $url
+     * @return string
+     */
     static public function get($url) {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -44,6 +60,12 @@ class CurlWrapper {
         return $data;
     }
 
+    /**
+     * Returns full domain name or false if unreachable
+     *
+     * @param string $url
+     * @return bool|string
+     */
     static public function getEffectiveUrl($url) {
         $result = false;
         $ch = curl_init($url);
@@ -59,6 +81,13 @@ class CurlWrapper {
 
 }
 
+/**
+ * Class ParsedPagesList
+ *
+ * List for store already parsed links
+ *
+ * @package RKInnovationTest
+ */
 class ParsedPagesList {
 
     protected $_urls;
@@ -67,18 +96,38 @@ class ParsedPagesList {
         $this->_urls = [];
     }
 
+    /**
+     * Add new link to list
+     *
+     * @param Record $record
+     */
     public function add(Record $record) {
         $this->_urls[$record->getUrl()] = $record;
     }
 
-    public function isUrlInCache($url) {
+    /**
+     * Checks if url already processed
+     *
+     * @param string $url
+     * @return bool
+     */
+    public function isUrlInList($url) {
         return array_key_exists($url, $this->_urls);
     }
 
+    /**
+     * Returns list of all Records
+     *
+     * @return array
+     */
     public function getAll() {
         return $this->_urls;
     }
 
+    /**
+     * Sorts list by image count desc
+     *
+     */
     public function sortByImageCount() {
         uasort($this->_urls, function(Record $v1, Record $v2) {
             $imgCount1 = $v1->getImageCount();
@@ -90,6 +139,10 @@ class ParsedPagesList {
         });
     }
 
+    /**
+     * Prints (echoes) list to STDOUT (for debugging)
+     *
+     */
     public function printAll() {
         foreach ($this->_urls as $record) {
             $url = $record->getUrl();
@@ -183,8 +236,8 @@ class HtmlReport {
 
 class UrlTools {
 
-    static public function isSiteLink($url) {
-        return preg_match('/(^[^(http|https|ftp|www|#)]\/?[%\w\p{L}]+)/iu', $url);
+    static public function isLocalLink($url) {
+        return preg_match('/(^[^(http|https|ftp|www)]\/?[%#\w\p{L}]+)/iu', $url);
     }
 
     static public function extractLocalPath($url) {
@@ -210,7 +263,7 @@ class ImgTagCountCommand implements CrawlingCommand {
         while (count($linkStack) > 0) {
             $url = array_shift($linkStack);
 
-            if ($parsedPages->isUrlInCache($url)) {
+            if ($parsedPages->isUrlInList($url)) {
                 continue;
             }
 
@@ -232,9 +285,11 @@ class ImgTagCountCommand implements CrawlingCommand {
             $links = $doc->getLinks();
             foreach ($links as $link) {
                 $href = $doc->getHrefOfLink($link);
-                if (UrlTools::isSiteLink($href)) {
-                    $url = $startPage . UrlTools::extractLocalPath($href);
-                    $linkStack[] =  $url;
+                if (UrlTools::isLocalLink($href)) {
+                    $href = $startPage . UrlTools::extractLocalPath($href);
+                }
+                if (strpos(strtolower($href), strtolower($startPage)) !== false) {
+                    $linkStack[] =  $href;
                 }
             }
         }
@@ -242,6 +297,13 @@ class ImgTagCountCommand implements CrawlingCommand {
     }
 }
 
+/**
+ * Class CrawlerApp
+ *
+ * Incapsulates functionality for whole app
+ *
+ * @package RKInnovationTest
+ */
 class CrawlerApp {
 
     protected $_htmlPage;
@@ -262,6 +324,11 @@ class CrawlerApp {
         $this->_startPage = $startPage;
     }
 
+    /**
+     * Sets the command that process document and extracts data
+     *
+     * @param CrawlingCommand $command
+     */
     public function setCommand(CrawlingCommand $command) {
         $this->_command = $command;
     }
