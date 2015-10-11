@@ -23,40 +23,43 @@ class Record {
     public function getUrl() {
         return $this->_url;
     }
+
+    public function getImageCount() {
+        return $this->_imageCount;
+    }
+
+    public function getParsingTime() {
+        return $this->_parsingTime;
+    }
 }
 
 class CurlWrapper {
 
-    protected $_ch;
-
-    public function __construct() {
-        $this->_ch = curl_init();
-        curl_setopt($this->_ch, CURLOPT_RETURNTRANSFER, true);
+    static public function get($url) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $data = curl_exec($ch);
+        curl_close($ch);
+        unset($ch);
+        return $data;
     }
 
-    public function __destruct() {
-        curl_close($this->_ch);
-    }
-
-    public function get($url) {
-        curl_setopt($this->_ch, CURLOPT_URL, $url);
-        return curl_exec($this->_ch);
-    }
-
-    public function getEffectiveUrl($url) {
-        curl_setopt($this->_ch, CURLOPT_URL, $url);
-        if (curl_exec($this->_ch) !== false) {
-            return curl_getinfo($this->_ch, CURLINFO_EFFECTIVE_URL);
+    static public function getEffectiveUrl($url) {
+        $result = false;
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $data = curl_exec($ch);
+        if ($data !== false) {
+            $result = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
         }
-        return false;
+        curl_close($ch);
+        unset($ch);
+        return $result;
     }
 
-    public function error() {
-        return curl_error($this->_ch);
-    }
 }
 
-class ParsedPagesCache {
+class ParsedPagesList {
 
     protected $_urls;
 
@@ -71,6 +74,30 @@ class ParsedPagesCache {
     public function isUrlInCache($url) {
         return array_key_exists($url, $this->_urls);
     }
+
+    public function getAll() {
+        return $this->_urls;
+    }
+
+    public function sortByImageCount() {
+        uasort($this->_urls, function(Record $v1, Record $v2) {
+            $imgCount1 = $v1->getImageCount();
+            $imgCount2 = $v2->getImageCount();
+            if ($imgCount1 === $imgCount2) {
+                return 0;
+            }
+            return ($imgCount1 > $imgCount2) ? -1 : 1;
+        });
+    }
+
+    public function printAll() {
+        foreach ($this->_urls as $record) {
+            $url = $record->getUrl();
+            $imgCnt = $record->getImageCount();
+            $time = $record->getParsingTime();
+            echo "$url; $imgCnt; $time\n";
+        }
+    }
 }
 
 class HtmlPage {
@@ -83,7 +110,9 @@ class HtmlPage {
     }
 
     public function load($html) {
-        $this->_domDoc->loadHTML($html, LIBXML_COMPACT);
+        if ($html) {
+            $this->_domDoc->loadHTML($html, LIBXML_COMPACT);
+        }
     }
 
     public function getImgTagCount() {
@@ -99,7 +128,70 @@ class HtmlPage {
         if (is_object($link->attributes->getNamedItem('href'))) {
             return $link->attributes->getNamedItem('href')->nodeValue;
         }
-        return '';
+        return '/';
     }
 
+}
+
+class HtmlReport {
+
+    const TEMPLATE = 'template.html';
+
+    protected $_pagesList;
+
+    public function __construct(ParsedPagesList $pagesList) {
+        $this->_pagesList = $pagesList;
+    }
+
+    protected function generateFileName() {
+        return sprintf('report_%s.html', date('d.m.Y'));
+    }
+
+    protected function renderTable() {
+        $htmlTable = '';
+        foreach ($this->_pagesList->getAll() as $record) {
+            $htmlTable .= sprintf("<tr><td>%s</td><td>%s</td><td>%s</td></tr>\n",
+                $record->getUrl(), $record->getImageCount(), $record->getParsingTime());
+        }
+        return $htmlTable;
+    }
+
+    protected function readTemplateAsString() {
+        $fh = fopen(self::TEMPLATE, 'r');
+        if ($fh === false) {
+            throw new \RuntimeException("Can't open report template file " . self::TEMPLATE);
+        }
+        $templateString = fread($fh, filesize(self::TEMPLATE));
+        fclose($fh);
+        return $templateString;
+    }
+
+    protected function save($filename, $content) {
+        $fh = fopen($filename, 'w');
+        fwrite($fh, $content);
+        fclose($fh);
+    }
+
+    public function create() {
+        $reportFilename = $this->generateFileName();
+        $htmlTable = $this->renderTable();
+        $content = str_replace('{{ content }}', $htmlTable, $this->readTemplateAsString());
+        $this->save($reportFilename, $content);
+    }
+
+}
+
+class UrlTools {
+
+    static public function isSiteLink($url) {
+        return preg_match('/(^[^(http|https|ftp|www|#)]\/?[%\w\p{L}]+)/iu', $url);
+    }
+
+    static public function extractLocalPath($url) {
+        $matches = [];
+        if (preg_match('/^\/?([%\p{L}\w\.\-\/]+)/ui', $url, $matches) === 1) {
+            return $matches[1];
+        }
+        return false;
+    }
 }

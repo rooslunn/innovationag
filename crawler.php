@@ -8,46 +8,36 @@
 
 include_once 'Helpers.php';
 
-use RKInnovationTest\ParsedPagesCache;
+use RKInnovationTest\ParsedPagesList;
 use RKInnovationTest\Record;
 use RKInnovationTest\CurlWrapper;
 use RKInnovationTest\HtmlPage;
+use RKInnovationTest\UrlTools;
+use RKInnovationTest\HtmlReport;
 
-
-//$startPage = 'http://rabota.ua/';
-//$startPage = 'https://www.google.com.ua';
+$startPage = 'www.apple.com';
 $startPage = 'localhost:3030';
-//$startPage = 'www.apple.com';
-//$startPage = 'hh.ua';
-//$startPage = 'habrahabr.ru';
 
 $doc = new HtmlPage();
-$parsedPages = new ParsedPagesCache();
-$curl = new CurlWrapper();
+$parsedPages = new ParsedPagesList();
 
 // Strategy
 
-$realStartPage = $curl->getEffectiveUrl($startPage);
+$realStartPage = CurlWrapper::getEffectiveUrl($startPage);
 if ($realStartPage) {
-    crawlSite($realStartPage, $doc, $curl, $parsedPages);
+    echo "Start crawling $realStartPage\n";
+    crawlSite($realStartPage, $doc, $parsedPages);
+    $parsedPages->sortByImageCount();
+    $report = new HtmlReport($parsedPages);
+    echo 'Saving report...';
+    $report->create();
+    echo "Done\n";
 } else {
     die('Address is unreachable');
 }
 
+function crawlSite($startPage, HtmlPage $doc, ParsedPagesList $parsedPages) {
 
-function isSiteLink($url) {
-    return preg_match('/(^[^(http|https|ftp|www|#)]\/?[%\w\p{L}]+)/iu', $url);
-}
-
-function extractLocalPath($url) {
-    $matches = [];
-    if (preg_match('/^\/?([%\p{L}\w\.\-\/]+)/ui', $url, $matches) === 1) {
-        return $matches[1];
-    }
-    return false;
-}
-
-function crawlSite($startPage, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCache $parsedPages) {
     $linkStack = [];
 
     $url = $startPage;
@@ -62,25 +52,27 @@ function crawlSite($startPage, HtmlPage $doc, CurlWrapper $curl, ParsedPagesCach
             continue;
         }
 
-        echo 'Parsing: ' . urldecode($url) . PHP_EOL;
-        $html = $curl->get($url);
+        echo "==> Crawling $url...";
+
+        $startTime = microtime(true);
+        $html = CurlWrapper::get($url);
         if ($html === false) {
-            echo 'Failed: ' . $curl->error() . PHP_EOL;
+            echo 'Failed due to curl error' . PHP_EOL;
             continue;
         }
 
-        $startTime = microtime(true);
         $doc->load($html);
         $imageCount = $doc->getImgTagCount();
         $parseTime = microtime(true) - $startTime;
         $parsedPages->add(new Record($url, $imageCount, $parseTime));
-        echo $url . ': ' . $imageCount . '; ' . $parseTime . PHP_EOL;
+
+        echo "Done\n";
 
         $links = $doc->getLinks();
         foreach ($links as $link) {
             $href = $doc->getHrefOfLink($link);
-            if (isSiteLink($href)) {
-                $url = $startPage . extractLocalPath($href);
+            if (UrlTools::isSiteLink($href)) {
+                $url = $startPage . UrlTools::extractLocalPath($href);
                 $linkStack[] =  $url;
             }
         }
