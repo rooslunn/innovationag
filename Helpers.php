@@ -195,3 +195,94 @@ class UrlTools {
         return false;
     }
 }
+
+interface CrawlingCommand {
+    public function crawl($startPage, HtmlPage $doc, ParsedPagesList $parsedPages);
+}
+
+class ImgTagCountCommand implements CrawlingCommand {
+
+    public function crawl($startPage, HtmlPage $doc, ParsedPagesList $parsedPages) {
+        $url = $startPage;
+        $linkStack = [];
+        $linkStack[] = $url;
+
+        while (count($linkStack) > 0) {
+            $url = array_shift($linkStack);
+
+            if ($parsedPages->isUrlInCache($url)) {
+                continue;
+            }
+
+            echo sprintf('==> Crawling %s ...', urldecode($url));
+            $startTime = microtime(true);
+            $html = CurlWrapper::get($url);
+            if ($html === false) {
+                echo 'Failed due to curl error' . PHP_EOL;
+                continue;
+            }
+
+            $doc->load($html);
+            $imageCount = $doc->getImgTagCount();
+            $parseTime = microtime(true) - $startTime;
+            $parsedPages->add(new Record($url, $imageCount, $parseTime));
+
+            echo sprintf("Done (%d)\n", memory_get_usage());
+
+            $links = $doc->getLinks();
+            foreach ($links as $link) {
+                $href = $doc->getHrefOfLink($link);
+                if (UrlTools::isSiteLink($href)) {
+                    $url = $startPage . UrlTools::extractLocalPath($href);
+                    $linkStack[] =  $url;
+                }
+            }
+        }
+
+    }
+}
+
+class CrawlerApp {
+
+    protected $_htmlPage;
+    protected $_parsedPages;
+    protected $_startPage;
+    protected $_command;
+
+    const START_MESSAGE = 'Start crawling %s (%d)';
+    const SAVE_REPORT_MESSAGE = 'Saving report...';
+    const DONE_MESSAGE = 'Done';
+
+    const COMMAND_NOT_SET_ERROR = 'Crawling Command for App is not set';
+    const ADDRESS_UNREACHABLE_ERROR = 'Address is unreachable';
+
+    public function __construct($startPage) {
+        $this->_htmlPage = new HtmlPage();
+        $this->_parsedPages = new ParsedPagesList();
+        $this->_startPage = $startPage;
+    }
+
+    public function setCommand(CrawlingCommand $command) {
+        $this->_command = $command;
+    }
+
+    public function run() {
+        if (null === $this->_command) {
+            throw new \RuntimeException(self::COMMAND_NOT_SET_ERROR);
+        }
+
+        $realStartPage = CurlWrapper::getEffectiveUrl($this->_startPage);
+        if ($realStartPage) {
+            echo sprintf(self::START_MESSAGE . PHP_EOL, $realStartPage, memory_get_usage());
+            $this->_command->crawl($realStartPage, $this->_htmlPage, $this->_parsedPages);
+            $this->_parsedPages->sortByImageCount();
+            $report = new HtmlReport($this->_parsedPages);
+            echo self::SAVE_REPORT_MESSAGE;
+            $report->create();
+            echo self::DONE_MESSAGE . PHP_EOL;
+        } else {
+            throw new \HttpException(self::ADDRESS_UNREACHABLE_ERROR);
+        }
+
+    }
+}
