@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 /**
  * Created by PhpStorm.
@@ -15,8 +16,18 @@ use RKInnovationTest\HtmlPage;
 use RKInnovationTest\UrlTools;
 use RKInnovationTest\HtmlReport;
 
-$startPage = 'www.apple.com';
-$startPage = 'localhost:3030';
+const USAGE_INFO = "    Usage: php crawler.php <address>\n";
+
+if (PHP_SAPI !== 'cli') {
+    echo "App must be run from command line\n";
+    die(USAGE_INFO);
+}
+
+if (count($argv) < 2) {
+    die(USAGE_INFO);
+}
+
+$startPage = $argv[1];
 
 $doc = new HtmlPage();
 $parsedPages = new ParsedPagesList();
@@ -25,7 +36,7 @@ $parsedPages = new ParsedPagesList();
 
 $realStartPage = CurlWrapper::getEffectiveUrl($startPage);
 if ($realStartPage) {
-    echo "Start crawling $realStartPage\n";
+    echo sprintf("Start crawling %s (%d)\n", $realStartPage, memory_get_usage());
     crawlSite($realStartPage, $doc, $parsedPages);
     $parsedPages->sortByImageCount();
     $report = new HtmlReport($parsedPages);
@@ -33,7 +44,7 @@ if ($realStartPage) {
     $report->create();
     echo "Done\n";
 } else {
-    die('Address is unreachable');
+    die("Address is unreachable\n");
 }
 
 function crawlSite($startPage, HtmlPage $doc, ParsedPagesList $parsedPages) {
@@ -66,7 +77,7 @@ function crawlSite($startPage, HtmlPage $doc, ParsedPagesList $parsedPages) {
         $parseTime = microtime(true) - $startTime;
         $parsedPages->add(new Record($url, $imageCount, $parseTime));
 
-        echo "Done\n";
+        echo sprintf("Done (%d)\n", memory_get_usage());
 
         $links = $doc->getLinks();
         foreach ($links as $link) {
