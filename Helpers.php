@@ -255,6 +255,10 @@ interface CrawlingCommand {
 
 class ImgTagCountCommand implements CrawlingCommand {
 
+    private function convertTimeToMiliseconds($time) {
+        return floor($time * 1000);
+    }
+
     public function crawl($startPage, HtmlPage $doc, ParsedPagesList $parsedPages) {
         $url = $startPage;
         $linkStack = [];
@@ -277,7 +281,7 @@ class ImgTagCountCommand implements CrawlingCommand {
 
             $doc->load($html);
             $imageCount = $doc->getImgTagCount();
-            $parseTime = microtime(true) - $startTime;
+            $parseTime = $this->convertTimeToMiliseconds(microtime(true) - $startTime);
             $parsedPages->add(new Record($url, $imageCount, $parseTime));
 
             echo sprintf("Done (%d)\n", memory_get_usage());
