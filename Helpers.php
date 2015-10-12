@@ -260,9 +260,7 @@ class ImgTagCountCommand implements CrawlingCommand {
     }
 
     public function crawl($startPage, HtmlPage $doc, ParsedPagesList $parsedPages) {
-        $url = $startPage;
-        $linkStack = [];
-        $linkStack[] = $url;
+        $linkStack[] = $startPage;
 
         while (count($linkStack) > 0) {
             $url = array_shift($linkStack);
