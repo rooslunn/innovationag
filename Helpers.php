@@ -247,6 +247,16 @@ class UrlTools {
         }
         return false;
     }
+
+    /**
+     * @param string $startPage
+     * @param string $href
+     * @return bool
+     */
+    static public function isDomainLink($startPage, $href)
+    {
+        return strpos(strtolower($href), strtolower($startPage)) !== false;
+    }
 }
 
 interface CrawlingCommand {
@@ -290,13 +300,14 @@ class ImgTagCountCommand implements CrawlingCommand {
                 if (UrlTools::isLocalLink($href)) {
                     $href = $startPage . UrlTools::extractLocalPath($href);
                 }
-                if (strpos(strtolower($href), strtolower($startPage)) !== false) {
+                if (UrlTools::isDomainLink($startPage, $href)) {
                     $linkStack[] =  $href;
                 }
             }
         }
 
     }
+
 }
 
 /**
